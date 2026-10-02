@@ -1466,11 +1466,11 @@ class ConversorApp:
         # 2. CONTAINER PRINCIPAL
         abas = ttk.Notebook(self.root)
         abas.pack(fill=tk.BOTH, expand=True)
-        main_frame = tk.Frame(abas, padx=16, pady=12)
-        abas.add(main_frame, text="  Pedido de Compra  ")
         aba_generica = tk.Frame(abas, padx=16, pady=12)
         abas.add(aba_generica, text="  Qualquer PDF  ")
         self._criar_aba_generica(aba_generica)
+        main_frame = tk.Frame(abas, padx=16, pady=12)
+        abas.add(main_frame, text="  Pedido de Compra  ")
 
         # SELETOR DE ARQUIVOS
         file_frame = tk.LabelFrame(main_frame, text=" Arquivos ", font=("Segoe UI", 10, "bold"), padx=10, pady=10)
