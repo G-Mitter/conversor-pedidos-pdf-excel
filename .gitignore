@@ -1,0 +1,18 @@
+# Dados de clientes: pedidos em PDF, planilhas geradas e logs nunca vão para o GitHub
+*.pdf
+*.xlsx
+*.log
+exemplos/
+
+# Gerados pelo PyInstaller
+build/
+build_novo/
+dist/
+dist_novo/
+
+# Python
+__pycache__/
+*.pyc
+
+# Cópias locais
+app_gui_backup_*.py
