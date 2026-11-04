@@ -58,7 +58,11 @@ pip install pyinstaller
 python -m PyInstaller Conversor_de_Pedidos.spec --noconfirm
 ```
 
-O executável sai em `dist/`. O arquivo `.spec` já inclui o ícone, os modelos do OCR e as dependências que o PyInstaller não encontra sozinho.
+O executável sai em `dist/`.
+
+Atalhos no Windows (clique duas vezes; a janela só fecha quando você aperta uma tecla):
+- `atualizar.bat`: baixa as últimas correções do GitHub (precisa de uma pasta clonada com `git clone`).
+- `gerar_exe.bat`: instala as dependências e gera o `dist\Conversor_de_Pedidos.exe`. O arquivo `.spec` já inclui o ícone, os modelos do OCR e as dependências que o PyInstaller não encontra sozinho.
 
 ## Como funciona
 
