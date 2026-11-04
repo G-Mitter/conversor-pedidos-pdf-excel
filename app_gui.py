@@ -230,7 +230,31 @@ def reconstruir_linhas_por_coordenadas(boxes):
 
 
 def caixas_rapidocr(pil_img):
-    """Executa o RapidOCR e devolve as caixas de texto com suas coordenadas."""
+    """
+    Executa o RapidOCR e devolve as caixas de texto com suas coordenadas.
+    Página deitada (relatório impresso girado 90°): a maioria das caixas sai mais alta que larga.
+    Nesse caso gira a imagem nos dois sentidos e fica com o de melhor leitura, senão as colunas
+    viram linhas e nenhum produto é reconhecido.
+    """
+    boxes = _ocr_caixas(pil_img)
+    verticais = sum(1 for b in boxes if (b['y_max'] - b['y_min']) > (b['x_max'] - b['x_min']))
+    if not boxes or verticais <= len(boxes) / 2:
+        return boxes
+
+    # Sem o classificador de ângulo, o sentido errado (texto de cabeça para baixo) lê mal
+    # e tem pontuação bem menor. ponytail: atributo interno do rapidocr 1.x; sem ele compara com o classificador ligado.
+    cls_antes = getattr(rapid_ocr_engine, 'use_angle_cls', None)
+    try:
+        if cls_antes is not None:
+            rapid_ocr_engine.use_angle_cls = False
+        pontuacao = {g: sum(b['score'] for b in _ocr_caixas(pil_img.rotate(g, expand=True))) for g in (-90, 90)}
+    finally:
+        if cls_antes is not None:
+            rapid_ocr_engine.use_angle_cls = cls_antes
+    return _ocr_caixas(pil_img.rotate(max(pontuacao, key=pontuacao.get), expand=True))
+
+
+def _ocr_caixas(pil_img):
     import numpy as np
     result, _ = rapid_ocr_engine(np.array(pil_img))
     boxes = []
@@ -252,6 +276,7 @@ def caixas_rapidocr(pil_img):
             'y_max': y_max,
             'y_center': (y_min + y_max) / 2.0,
             'height': max(y_max - y_min, 10.0),
+            'score': float(item[2]) if len(item) > 2 else 0.0,
             'text': txt
         })
     return boxes
