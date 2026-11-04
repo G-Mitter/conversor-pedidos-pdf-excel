@@ -547,11 +547,16 @@ def normalizar_linha_ocr(texto):
     """
     if not texto:
         return ""
-    t = texto.replace('\xa0', ' ').replace('|', ' ')
+    t = texto.replace('\xa0', ' ').replace('|', ' ').replace('：', ' ')
+    # ':' que o OCR cola entre códigos (ex: 544986:7908008824945 -> 544986 7908008824945)
+    t = re.sub(r'(\d):(?=\d{8})', r'\1 ', t)
 
     # Corrige 'O' ou 'o' no lugar de zeros numéricos decimais
     t = re.sub(r'(\d+)[,\.](\d*)([Oo]+)(\d*)', lambda m: m.group(0).replace('O', '0').replace('o', '0'), t)
     t = re.sub(r'([Oo]+)[,\.](\d+)', lambda m: m.group(0).replace('O', '0').replace('o', '0'), t)
+
+    # Ponto de milhar seguido de espaço (1. 800,00 -> 1.800,00), antes da regra abaixo virar 1,800,00
+    t = re.sub(r'(\d)\.\s+(\d{3},\d)', r'\1.\2', t)
 
     # Elimina espaços espúrios entre vírgula/ponto e dígitos numéricos (6, 000 -> 6,000 | 20. 36 -> 20,36 | 360, 000 -> 360,000)
     t = re.sub(r'(\d+)[,\.]\s+(\d+)', r'\1,\2', t)
@@ -634,7 +639,9 @@ def extrair_dados_cabecalho_rodape(linhas):
         'comprador': '',
         'quant_itens': '',
         'total_geral': '',
-        'observacoes': ''
+        'observacoes': '',
+        'fornecedor': '',
+        'cnpj_fornecedor': ''
     }
 
     texto_completo = "\n".join(linhas)
@@ -680,9 +687,18 @@ def extrair_dados_cabecalho_rodape(linhas):
         if any(k in l_s.upper() for k in ['LTDA', 'S.A.', 'S/A', 'EIRELI', ' ME ', 'COMERCIO', 'COM.']):
             # Isola a Razão Social retirando trechos como CNPJ: ... ou Página x de y
             rz = re.split(r'CNPJ|Insc|Data|P[áa]gina|RUA|AV\.', l_s, flags=re.IGNORECASE)[0].strip()
-            if len(rz) > 3 and not info['razao_social']:
+            if len(rz) <= 3:
+                continue
+            if not info['razao_social']:
                 info['razao_social'] = rz
-                break
+            elif rz != info['razao_social']:
+                # Segunda empresa do cabeçalho, com CNPJ na mesma linha: o fornecedor
+                # (ex: comprador ARUNA, fornecedor MABEL). Exigir o CNPJ evita pegar descrição de produto.
+                m_cf = re.search(r'\d{2}\.\d{3}\.\d{3}/\d{4}-\d{2}', l_s)
+                if m_cf and m_cf.group(0) != info['cnpj']:
+                    info['fornecedor'] = rz
+                    info['cnpj_fornecedor'] = m_cf.group(0)
+                    break
 
     # 7. Endereço, Telefone e E-mail
     for l in linhas[:20]:
@@ -717,9 +733,10 @@ def extrair_dados_cabecalho_rodape(linhas):
     if m_qi:
         info['quant_itens'] = m_qi.group(1).strip()
 
-    m_tot = re.search(r'Total\s*Geral[^0-9\n\r]*?(\d{1,3}(?:\.\d{3})*,\d{2}|\d+,\d{2})', texto_completo, re.IGNORECASE)
+    # Aceita o espaço que o OCR põe depois do ponto de milhar (43. 563,60)
+    m_tot = re.search(r'Total\s*Geral[^0-9\n\r]*?(\d{1,3}(?:\.\s?\d{3})*,\d{2}|\d+,\d{2})', texto_completo, re.IGNORECASE)
     if m_tot:
-        info['total_geral'] = m_tot.group(1).strip()
+        info['total_geral'] = re.sub(r'\s', '', m_tot.group(1))
 
     # 12. Observações
     m_obs = re.search(r'Observa[çc][õo]es:\s*([^\n\r]+(?:(?:\n[^\n\r]+){1,4})?)', texto_completo, re.IGNORECASE)
@@ -992,6 +1009,8 @@ def extrair_pdf_para_excel(caminho_pdf, caminho_excel, forcar_ocr=False, callbac
                     'quant_itens': info_pagina['quant_itens'],
                     'total_geral': info_pagina['total_geral'],
                     'observacoes': info_pagina['observacoes'],
+                    'fornecedor': info_pagina['fornecedor'],
+                    'cnpj_fornecedor': info_pagina['cnpj_fornecedor'],
                     'produtos': []
                 }
             else:
@@ -1098,6 +1117,8 @@ def extrair_pdf_para_excel(caminho_pdf, caminho_excel, forcar_ocr=False, callbac
             ("Endereço:", filial['endereco'], "Telefone:", filial['telefone'], "Email:", filial['email']),
             ("Comprador:", filial['comprador'], "Cond. Pagamento:", filial['cond_pagamento'], "", "")
         ]
+        if filial.get('fornecedor'):
+            metadados.insert(2, ("Fornecedor:", filial['fornecedor'], "CNPJ Fornecedor:", filial.get('cnpj_fornecedor', ''), "", ""))
 
         for meta in metadados:
             c1, v1, c2, v2, c3, v3 = meta

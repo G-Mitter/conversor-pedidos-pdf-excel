@@ -67,8 +67,21 @@ def test_generico_texto_corrido():
     os.remove(pdf)
 
 
+def test_erros_ocr():
+    """Erros de OCR vistos no pedido Mabel: espaço após o ponto de milhar e ':' colado nos códigos."""
+    assert app_gui.normalizar_linha_ocr("0,00 1. 800,00") == "0,00 1.800,00"
+    assert app_gui.normalizar_linha_ocr("544986:7908008824945") == "544986 7908008824945"
+    linhas = ["ARUNA IMPORTADORA LTDA CNPJ:35.003.064/0002-01",
+              "MABEL COMERCIO DE IMPORTADOS LTDA CNPJ: 00.527.682/0001-95",
+              "Peso Total: 3.756,000 Total Geral: 43. 563,60"]
+    info = app_gui.extrair_dados_cabecalho_rodape(linhas)
+    assert info["total_geral"] == "43.563,60", info["total_geral"]
+    assert (info["razao_social"], info["fornecedor"]) == ("ARUNA IMPORTADORA LTDA", "MABEL COMERCIO DE IMPORTADOS LTDA"), info
+
+
 if __name__ == "__main__":
     test_generico_texto_corrido()
+    test_erros_ocr()
     for pdf, testes in [(PEDIDO_TEXTO, [test_pedido_texto, test_generico_tabela]), (PEDIDO_IMAGEM, [test_pedido_imagem])]:
         if not os.path.exists(pdf):
             print(f"Pulado (sem {os.path.relpath(pdf)}): {', '.join(t.__name__ for t in testes)}")
